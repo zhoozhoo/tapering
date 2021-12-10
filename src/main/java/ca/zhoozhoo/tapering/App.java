@@ -10,34 +10,39 @@ import static java.lang.String.format;
 
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
+import org.paukov.combinatorics3.Generator;
 
 public class App {
 
-    static final String[] HEADERS = { "Week", "100", "50", "25", "12.5", "5" };
+	static final String[] HEADERS = { "Week", "100", "50", "25", "12.5", "5" };
 	static final List<Float> DOSAGES = List.of(100f, 50f, 25f, 12.5f, 5f);
 	static List<List<Float>> combinations = new ArrayList<>();
 
+	Map<String, String> AUTHOR_BOOK_MAP = new HashMap<>() {
+		{
+			put("Dan Simmons", "Hyperion");
+			put("Douglas Adams", "The Hitchhiker's Guide to the Galaxy");
+		}
+	};
 
-    Map<String, String> AUTHOR_BOOK_MAP = new HashMap<>() {
-        {
-            put("Dan Simmons", "Hyperion");
-            put("Douglas Adams", "The Hitchhiker's Guide to the Galaxy");
-        }
-    };
+	public static void main(String[] args) {
+		Generator.permutation("100", "50", "25", "12.5", "5")
+		.simple()
+		.stream()
+		.forEach(System.out::println);
+		
+		// try {
+		// 	var app = new App();
 
-    public static void main(String[] args) {
-        try {
-            var app = new App();
+		// 	app.createCombinations(DOSAGES, new ArrayList<Float>());
 
-            app.createCombinations(DOSAGES, new ArrayList<Float>());
+		// 	app.createCSVFile(null);
+		// } catch (IOException e) {
+		// 	e.printStackTrace();
+		// }
+	}
 
-            app.createCSVFile(null);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    public float next(float current, float percentage) {
+	public float next(float current, float percentage) {
 		float next = current * (1 - percentage / 100);
 		float actualDosage = 0;
 		float winnerPercentage = Float.MAX_VALUE;
@@ -105,20 +110,20 @@ public class App {
 		return actualDosage;
 	}
 
-    public void createCSVFile(List<Dosage> dosages) throws IOException {
-        FileWriter out = new FileWriter("dosages.csv");
+	public void createCSVFile(List<Dosage> dosages) throws IOException {
+		FileWriter out = new FileWriter("dosages.csv");
 
-        try (CSVPrinter printer = new CSVPrinter(out, CSVFormat.DEFAULT
-                .withHeader(HEADERS))) {
-            AUTHOR_BOOK_MAP.forEach((author, title) -> {
-                try {
-                    printer.printRecord(author, title);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            });
-        }
-    }
+		try (CSVPrinter printer = new CSVPrinter(out, CSVFormat.DEFAULT
+				.withHeader(HEADERS))) {
+			AUTHOR_BOOK_MAP.forEach((author, title) -> {
+				try {
+					printer.printRecord(author, title);
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			});
+		}
+	}
 
 	public void createCombinations(List<Float> str, List<Float> ans) {
 		if (str.size() == 0) {
@@ -138,11 +143,10 @@ public class App {
 		}
 	}
 
+	public class Dosage {
 
-    public class Dosage {
+		float dosage;
 
-        float dosage;
-
-        int count;
-    }
+		int count;
+	}
 }
