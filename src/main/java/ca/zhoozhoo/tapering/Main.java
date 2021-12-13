@@ -1,118 +1,175 @@
 package ca.zhoozhoo.tapering;
 
 import static java.lang.String.format;
-
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVPrinter;
+import org.paukov.combinatorics3.Generator;
+
+import org.paukov.combinatorics3.IGenerator;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.RequiredArgsConstructor;
+
 public class Main {
+	static final String[] HEADERS = { "Week", "Previous Dosage", "Target New Dosage", "Actual New Dosage", "Percentage",
+			"100", "50",
+			"25", "12.5", "5" };
+
 	static int week = 1;
-	static final List<Float> DOSAGES = List.of(100f, 50f, 25f, 12.5f, 5f);
-	static List<List<Float>> combinations = new ArrayList<>();;
+	static List<List<Float>> combinations = new ArrayList<>();
+	static final IGenerator<List<Float>> PERMUTATIONS = Generator.permutation(100f, 50f, 25f, 20f, 12.5f, 10f, 5f)
+			.simple();
 
 	public static void main(String[] args) {
+		var main = new Main();
 		float current = 175;
 		System.out.println(format("Starting with %.1f: ", current));
 
-		createCombinations(DOSAGES, new ArrayList<Float>());
-
-		do {
-			current = next(current, 3);
+		while (current > 0) {
+			current = main.next(current, 3);
 			week++;
-		} while (week < 51);
+		}
+  	}
+
+	float next(float current, float percentage) {
+		var dosages = findBestPermutation(current, percentage);
+		if (dosages.getActualPercentage() > (percentage + 1)) {
+			dosages = findBestPermutation(current, percentage - 1);
+		}
+
+		System.out.println(dosages);
+
+		return dosages.getActualDosage();
 	}
 
-	static float next(float current, float percentage) {
+	Dosages findBestPermutation(float current, float percentage) {
 		float next = current * (1 - percentage / 100);
 		float actualDosage = 0;
 		float winnerPercentage = Float.MAX_VALUE;
-		int[] winnerDosages = new int[DOSAGES.size()];
-		List<Float> winnerCombination = null;
+		int[] winnerCounts = null;
+		float winnerDosage = 0;
+		List<Float> winnerPermutaion = null;
 
-		for (var combination : combinations) {
+		// System.out.println(format("Current dosage: %.2f, target dosage: %.2f ",
+		// current, next));
+		for (var permutation : PERMUTATIONS) {
 			actualDosage = 0;
 			float n = next;
-			int[] dosages = new int[combination.size()];
+			int[] dosages = new int[permutation.size()];
 
-			for (int i = 0; i < combination.size(); i++) {
-				dosages[i] = (int) (n / combination.get(i));
-				actualDosage += ((float) dosages[i]) * combination.get(i);
-				n %= combination.get(i);
+			for (int i = 0; i < permutation.size(); i++) {
+				dosages[i] = (int) (n / permutation.get(i));
+				// System.out.print(format("%.1f / %.1f = %s |", n, permutation.get(i),
+				// dosages[i]));
+				actualDosage += ((float) dosages[i]) * permutation.get(i);
+				n %= permutation.get(i);
 			}
 
 			float actualPercentage = (1f - (actualDosage / current)) * 100f;
 			if (actualPercentage < winnerPercentage) {
 				winnerPercentage = actualPercentage;
-				winnerCombination = combination;
-				winnerDosages = dosages;
+				winnerPermutaion = permutation;
+				winnerCounts = dosages;
+				winnerDosage = actualDosage;
 			}
+			// System.out.println(format("Permutation: %s, counts: %s, actula dosage: %.2f,
+			// actual percentage: %.2f",
+			// permutation, Arrays.toString(dosages), actualDosage, actualPercentage));
 		}
 
-		if (winnerPercentage > percentage) {
-			next = current * (1 - (percentage - 1) / 100);
-			actualDosage = 0;
-
-			for (var combination : combinations) {
-				actualDosage = 0;
-				float n = next;
-				int[] dosages = new int[combination.size()];
-
-				for (int i = 0; i < combination.size(); i++) {
-					dosages[i] = (int) (n / combination.get(i));
-					actualDosage += ((float) dosages[i]) * combination.get(i);
-					n %= combination.get(i);
-				}
-
-				float actualPercentage = (1f - (actualDosage / current)) * 100f;
-				if (actualPercentage < winnerPercentage) {
-					winnerPercentage = actualPercentage;
-					winnerCombination = combination;
-					winnerDosages = dosages;
-				}
-			}
-		}
-
-		System.out.print(format("Week %d: ", week));
-		float winnerDosage = 0;
-		for (int i = 0; i < winnerCombination.size(); i++) {
-			winnerDosage += ((float) winnerDosages[i]) * winnerCombination.get(i);
-			if (i > 0) {
-				System.out.print(" + ");
-			}
-			if (winnerCombination.get(i) == winnerCombination.get(i).longValue()) {
-				System.out.print(format("%.0fx%d", winnerCombination.get(i), winnerDosages[i]));
-			} else {
-				System.out.print(format("%.1fx%d", winnerCombination.get(i), winnerDosages[i]));
-			}
-		}
-		System.out.println(format(" = %.1f (%.2f%%)", winnerDosage, winnerPercentage));
-
-		return winnerDosage;
+		return new Dosages(week, current, percentage, winnerDosage,
+				winnerPercentage, winnerPermutaion.toArray(new Float[winnerPermutaion.size()]), winnerCounts);
 	}
 
-	static void createCombinations(List<Float> str, List<Float> ans) {
-		if (str.size() == 0) {
-			combinations.add(ans);
-			return;
-		}
+	void createCSVFile() throws IOException {
+		FileWriter out = new FileWriter("dosages.csv");
 
-		for (int i = 0; i < str.size(); i++) {
-			Float ch = str.get(i);
-			var str1 = new ArrayList<Float>(str);
-			str1.remove(i);
-
-			var ans1 = new ArrayList<Float>(ans);
-			ans1.add(ch);
-
-			createCombinations(str1, ans1);
+		try (CSVPrinter printer = new CSVPrinter(out, CSVFormat.DEFAULT
+				.withHeader(HEADERS))) {
+			combinations.forEach(combination -> {
+				try {
+					printer.printRecord();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			});
 		}
 	}
 
+	@Data
+	@AllArgsConstructor
+	@RequiredArgsConstructor
 	public class Dosages {
-		float dosage = 0;
-		float percentage;
-		int[] dosages;
-		List<Float> combination;
 
+		int week;
+		float currentDosage;
+		float targetPercentage;
+		float actualDosage;
+		float actualPercentage;
+		Dosage[] dosages;
+
+		public Dosages(int week, float currentDosage, float targetPercentage, float actualDosage,
+				float actualPercentage, Float[] pillSizes, int[] counts) {
+			this.week = week;
+			this.currentDosage = currentDosage;
+			this.targetPercentage = targetPercentage;
+			this.actualDosage = actualDosage;
+			this.actualPercentage = actualPercentage;
+			List<Dosage> dosages = new ArrayList<>();
+			int count5 = 0;
+			for (int i = 0; i < pillSizes.length; i++) {
+				if (pillSizes[i] == 5f) {
+					dosages.add(new Dosage(pillSizes[i], counts[i] + count5));
+				} else if (pillSizes[i] == 10f) {
+					count5 += counts[i] * 2;
+				} else if (pillSizes[i] == 20f) {
+					count5 += counts[i] * 4;
+				} else {
+					dosages.add(new Dosage(pillSizes[i], counts[i]));
+				}
+			}
+			dosages.sort((d1, d2) -> Float.compare(d2.getPillSize(), d1.getPillSize()));
+			this.dosages = dosages.toArray(new Dosage[dosages.size()]);
+		}
+
+		@Override
+		public String toString() {
+			StringBuilder stringBuilder = new StringBuilder();
+			stringBuilder.append(format("Week %2d: %5.1f --> %5.1f | ", week, currentDosage,
+					currentDosage * (1 - targetPercentage / 100)));
+			actualDosage = 0;
+			for (int i = 0; i < dosages.length; i++) {
+				actualDosage += dosages[i].getPillSize() * dosages[i].getCount();
+				if (i > 0) {
+					stringBuilder.append(" + ");
+				}
+				if (dosages[i].getCount() == 0) {
+					stringBuilder.append("      ");
+				} else {
+					if (dosages[i].getPillSize() == (long) dosages[i].getPillSize()) {
+						stringBuilder.append(format("%4.0fx%d", dosages[i].getPillSize(), dosages[i].getCount()));
+					} else {
+						stringBuilder.append(format("%4.1fx%d", dosages[i].getPillSize(), dosages[i].getCount()));
+					}
+				}
+			}
+			stringBuilder.append(format(" = %5.1f (%4.2f%%)", actualDosage, actualPercentage));
+
+			return stringBuilder.toString();
+		}
+
+		@Data
+		@AllArgsConstructor
+		@RequiredArgsConstructor
+		public class Dosage {
+			float pillSize;
+			int count;
+		}
 	}
 }
