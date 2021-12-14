@@ -1,6 +1,7 @@
 package ca.zhoozhoo.tapering;
 
 import static java.lang.String.format;
+
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -9,7 +10,6 @@ import java.util.List;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 import org.paukov.combinatorics3.Generator;
-
 import org.paukov.combinatorics3.IGenerator;
 
 import lombok.AllArgsConstructor;
@@ -17,7 +17,7 @@ import lombok.Data;
 import lombok.RequiredArgsConstructor;
 
 public class Main {
-	static final String[] HEADERS = { "Week", "Previous Dosage", "Target New Dosage", "Actual New Dosage", "Percentage",
+	static final String[] HEADERS = { "Week", "Current Dosage", "New Dosage", "Percentage",
 			"100", "50",
 			"25", "12.5", "5" };
 
@@ -35,9 +35,9 @@ public class Main {
 			current = main.next(current, 3);
 			week++;
 		}
-  	}
+	}
 
-	float next(float current, float percentage) {
+	private float next(float current, float percentage) {
 		var dosages = findBestPermutation(current, percentage);
 		if (dosages.getActualPercentage() > (percentage + 1)) {
 			dosages = findBestPermutation(current, percentage - 1);
@@ -48,7 +48,7 @@ public class Main {
 		return dosages.getActualDosage();
 	}
 
-	Dosages findBestPermutation(float current, float percentage) {
+	private Dosages findBestPermutation(float current, float percentage) {
 		float next = current * (1 - percentage / 100);
 		float actualDosage = 0;
 		float winnerPercentage = Float.MAX_VALUE;
@@ -108,10 +108,15 @@ public class Main {
 	public class Dosages {
 
 		int week;
+
 		float currentDosage;
+
 		float targetPercentage;
+
 		float actualDosage;
+
 		float actualPercentage;
+
 		Dosage[] dosages;
 
 		public Dosages(int week, float currentDosage, float targetPercentage, float actualDosage,
@@ -123,6 +128,7 @@ public class Main {
 			this.actualPercentage = actualPercentage;
 			List<Dosage> dosages = new ArrayList<>();
 			int count5 = 0;
+
 			for (int i = 0; i < pillSizes.length; i++) {
 				if (pillSizes[i] == 5f) {
 					dosages.add(new Dosage(pillSizes[i], counts[i] + count5));
@@ -134,15 +140,21 @@ public class Main {
 					dosages.add(new Dosage(pillSizes[i], counts[i]));
 				}
 			}
+
 			dosages.sort((d1, d2) -> Float.compare(d2.getPillSize(), d1.getPillSize()));
 			this.dosages = dosages.toArray(new Dosage[dosages.size()]);
+
+			if (this.dosages[4].pillSize * this.dosages[4].count > 50) {
+				this.dosages[1].count += (int) ((this.dosages[4].pillSize * this.dosages[4].count) / 50);
+				this.dosages[4].count = (int) (((this.dosages[4].pillSize * this.dosages[4].count) % 50) / (this.dosages[4].pillSize));
+			}
 		}
 
 		@Override
 		public String toString() {
 			StringBuilder stringBuilder = new StringBuilder();
-			stringBuilder.append(format("Week %2d: %5.1f --> %5.1f | ", week, currentDosage,
-					currentDosage * (1 - targetPercentage / 100)));
+			stringBuilder.append(format("Week %2d: %5.1f --> %5.1f (%6.2f%%) | ", week, currentDosage, actualDosage,
+					actualPercentage));
 			actualDosage = 0;
 			for (int i = 0; i < dosages.length; i++) {
 				actualDosage += dosages[i].getPillSize() * dosages[i].getCount();
@@ -159,7 +171,6 @@ public class Main {
 					}
 				}
 			}
-			stringBuilder.append(format(" = %5.1f (%4.2f%%)", actualDosage, actualPercentage));
 
 			return stringBuilder.toString();
 		}
