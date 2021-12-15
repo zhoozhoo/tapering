@@ -2,9 +2,13 @@ package ca.zhoozhoo.tapering;
 
 import static java.lang.String.format;
 
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.commons.csv.CSVFormat.Builder;
+import org.apache.commons.csv.CSVPrinter;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.config.Configurator;
@@ -22,9 +26,7 @@ import lombok.extern.log4j.Log4j2;
 @Log4j2
 public class Main {
 
-	// private static final Logger logger = LogManager.getLogger(Main.class);
-
-	private static final String[] HEADERS = { "Week", "Current Dosage", "New Dosage", "Percentage",
+	private static final String[] HEADERS = { "Week", "Current Dosage", "Next Dosage", "Percentage",
 			"100", "50",
 			"25", "12.5", "5" };
 
@@ -39,10 +41,6 @@ public class Main {
 	private static final float MAX_PERCENTAGE = 4;
 
 	public static void main(String[] args) {
-		var main = new Main();
-		int week = 1;
-		var currentDosage = STARTING_DOSE;
-
 		ConfigurationBuilder<BuiltConfiguration> builder = ConfigurationBuilderFactory.newConfigurationBuilder();
 		Configurator.reconfigure(builder.setStatusLevel(Level.INFO)
 				.setConfigurationName("DefaultLogger")
@@ -52,12 +50,25 @@ public class Main {
 								.addAttribute("pattern", "%d %p %c [%t] %m%n")))
 				.add(builder.newRootLogger(Level.INFO).add(builder.newAppenderRef("Console"))).build());
 
+		var main = new Main();
+		int week = 1;
+		var currentDosage = STARTING_DOSE;
+		var pillCountsWeeks = new ArrayList<PillCounts>();
+
 		while (currentDosage > 0) {
-			currentDosage = main.nextDosage(week++, currentDosage, MIN_PERCENTRAGE, MAX_PERCENTAGE);
+			var pillCounts = main.nextDosage(week++, currentDosage, MIN_PERCENTRAGE, MAX_PERCENTAGE);
+			currentDosage = pillCounts.getNextDosage();
+			pillCountsWeeks.add(pillCounts);
+		}
+
+		try {
+			main.createCSVFile(pillCountsWeeks);
+		} catch (IOException e) {
+			e.printStackTrace();
 		}
 	}
 
-	private float nextDosage(int week, float currentDosage, float minPercentage, float maxPercentage) {
+	private PillCounts nextDosage(int week, float currentDosage, float minPercentage, float maxPercentage) {
 		var pillCounts = findPillCounts(week, currentDosage, minPercentage);
 		if (pillCounts.getPercentage() > maxPercentage) {
 			pillCounts = findPillCounts(week, currentDosage, minPercentage - 1);
@@ -67,7 +78,7 @@ public class Main {
 			System.out.println(pillCounts);
 		}
 
-		return pillCounts.getNextDosage();
+		return pillCounts;
 	}
 
 	private PillCounts findPillCounts(int week, float currentDosage, float percentage) {
@@ -103,6 +114,31 @@ public class Main {
 
 		return new PillCounts(week, currentDosage, bestDosage, lowestPercentage,
 				bestPermutaion.toArray(new Float[bestPermutaion.size()]), lowestCounts);
+	}
+
+	public void createCSVFile(List<PillCounts> weeks) throws IOException {
+		FileWriter out = new FileWriter("dosages.csv");
+
+		try (CSVPrinter printer = new CSVPrinter(out, Builder.create()
+				.setDelimiter(',')
+				.setQuote('"')
+				.setRecordSeparator("\r\n")
+				.setIgnoreEmptyLines(true)
+				.setAllowDuplicateHeaderNames(true)
+				.setHeader(HEADERS)
+				.build())) {
+			weeks.forEach(pillCounts -> {
+				try {
+					printer.printRecord(pillCounts.getWeek(), pillCounts.getCurrentDosage(), pillCounts.getNextDosage(),
+							format("%.2f", pillCounts.getPercentage()), pillCounts.getDosages()[0].getCount(),
+							pillCounts.getDosages()[1].getCount(),
+							pillCounts.getDosages()[2].getCount(), pillCounts.getDosages()[3].getCount(),
+							pillCounts.getDosages()[4].getCount());
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			});
+		}
 	}
 
 	@Data
