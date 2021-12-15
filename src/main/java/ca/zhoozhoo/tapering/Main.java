@@ -2,27 +2,34 @@ package ca.zhoozhoo.tapering;
 
 import static java.lang.String.format;
 
-import java.io.FileWriter;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.commons.csv.CSVFormat;
-import org.apache.commons.csv.CSVPrinter;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.appender.ConsoleAppender;
+import org.apache.logging.log4j.core.config.Configurator;
+import org.apache.logging.log4j.core.config.builder.api.ConfigurationBuilder;
+import org.apache.logging.log4j.core.config.builder.api.ConfigurationBuilderFactory;
+import org.apache.logging.log4j.core.config.builder.impl.BuiltConfiguration;
 import org.paukov.combinatorics3.Generator;
 import org.paukov.combinatorics3.IGenerator;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 
+@Log4j2
 public class Main {
-	static final String[] HEADERS = { "Week", "Current Dosage", "New Dosage", "Percentage",
+
+	// private static final Logger logger = LogManager.getLogger(Main.class);
+
+	private static final String[] HEADERS = { "Week", "Current Dosage", "New Dosage", "Percentage",
 			"100", "50",
 			"25", "12.5", "5" };
 
-	static List<List<Float>> combinations = new ArrayList<>();
-	static final IGenerator<List<Float>> PERMUTATIONS = Generator.permutation(100f, 50f, 25f, 20f, 12.5f, 10f, 5f)
+	private static final IGenerator<List<Float>> PERMUTATIONS = Generator
+			.permutation(100f, 50f, 25f, 20f, 12.5f, 10f, 5f)
 			.simple();
 
 	private static final float STARTING_DOSE = 175;
@@ -34,33 +41,42 @@ public class Main {
 	public static void main(String[] args) {
 		var main = new Main();
 		int week = 1;
-		float currentDosage = STARTING_DOSE;
+		var currentDosage = STARTING_DOSE;
+
+		ConfigurationBuilder<BuiltConfiguration> builder = ConfigurationBuilderFactory.newConfigurationBuilder();
+		Configurator.reconfigure(builder.setStatusLevel(Level.INFO)
+				.setConfigurationName("DefaultLogger")
+				.add(builder.newAppender("Console", "CONSOLE")
+						.addAttribute("target", ConsoleAppender.Target.SYSTEM_OUT)
+						.add(builder.newLayout("PatternLayout")
+								.addAttribute("pattern", "%d %p %c [%t] %m%n")))
+				.add(builder.newRootLogger(Level.INFO).add(builder.newAppenderRef("Console"))).build());
 
 		while (currentDosage > 0) {
-			currentDosage = main.nextDosage(week, currentDosage, MIN_PERCENTRAGE);
-			week++;
+			currentDosage = main.nextDosage(week++, currentDosage, MIN_PERCENTRAGE, MAX_PERCENTAGE);
 		}
 	}
 
-	private float nextDosage(int week, float current, float percentage) {
-		var dosages = findBestPermutation(week, current, percentage);
-		if (dosages.getPercentage() > (percentage + 1)) {
-			dosages = findBestPermutation(week, current, percentage - 1);
+	private float nextDosage(int week, float currentDosage, float minPercentage, float maxPercentage) {
+		var pillCounts = findPillCounts(week, currentDosage, minPercentage);
+		if (pillCounts.getPercentage() > maxPercentage) {
+			pillCounts = findPillCounts(week, currentDosage, minPercentage - 1);
 		}
 
-		System.out.println(dosages);
+		if (pillCounts.getNextDosage() > 0) {
+			System.out.println(pillCounts);
+		}
 
-		return dosages.getNextDosage();
+		return pillCounts.getNextDosage();
 	}
 
-	private PillCounts findBestPermutation(int week, float currentDosage, float percentage) {
+	private PillCounts findPillCounts(int week, float currentDosage, float percentage) {
 		float lowestPercentage = 101;
 		int[] lowestCounts = null;
 		float bestDosage = 0;
 		List<Float> bestPermutaion = null;
 
-		// System.out.println(format("Current dosage: %.2f, target dosage: %.2f ",
-		// current, next));
+		log.debug(format("Current dosage: %.2f", currentDosage));
 		for (var permutation : PERMUTATIONS) {
 			float actualDosage = 0;
 			float targetDosage = currentDosage * (1 - percentage / 100);
@@ -87,21 +103,6 @@ public class Main {
 
 		return new PillCounts(week, currentDosage, bestDosage, lowestPercentage,
 				bestPermutaion.toArray(new Float[bestPermutaion.size()]), lowestCounts);
-	}
-
-	void createCSVFile() throws IOException {
-		FileWriter out = new FileWriter("dosages.csv");
-
-		try (CSVPrinter printer = new CSVPrinter(out, CSVFormat.DEFAULT
-				.withHeader(HEADERS))) {
-			combinations.forEach(combination -> {
-				try {
-					printer.printRecord();
-				} catch (IOException e) {
-					e.printStackTrace();
-				}
-			});
-		}
 	}
 
 	@Data
@@ -160,7 +161,7 @@ public class Main {
 		@Override
 		public String toString() {
 			StringBuilder stringBuilder = new StringBuilder();
-			stringBuilder.append(format("Week %2d: %5.1f --> %5.1f (%6.2f%%) | ", week, currentDosage, nextDosage,
+			stringBuilder.append(format("Week %2d | %5.1f --> %5.1f (%6.2f%%) | ", week, currentDosage, nextDosage,
 					percentage));
 			nextDosage = 0;
 			for (int i = 0; i < dosages.length; i++) {
