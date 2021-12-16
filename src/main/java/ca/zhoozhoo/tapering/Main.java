@@ -130,10 +130,12 @@ public class Main {
 			weeks.forEach(pillCounts -> {
 				try {
 					printer.printRecord(pillCounts.getWeek(), pillCounts.getCurrentDosage(), pillCounts.getNextDosage(),
-							format("%.2f", pillCounts.getPercentage()), pillCounts.getDosages()[0].getCount(),
-							pillCounts.getDosages()[1].getCount(),
-							pillCounts.getDosages()[2].getCount(), pillCounts.getDosages()[3].getCount(),
-							pillCounts.getDosages()[4].getCount());
+							format("%.2f", pillCounts.getPercentage()),
+							pillCounts.getDosages()[0].getCount() > 0 ? pillCounts.getDosages()[0].getCount() : "",
+							pillCounts.getDosages()[1].getCount() > 0 ? pillCounts.getDosages()[1].getCount() : "",
+							pillCounts.getDosages()[2].getCount() > 0 ? pillCounts.getDosages()[2].getCount() : "",
+							pillCounts.getDosages()[3].getCount() > 0 ? pillCounts.getDosages()[3].getCount() : "",
+							pillCounts.getDosages()[4].getCount() > 0 ? pillCounts.getDosages()[4].getCount() : "");
 				} catch (IOException e) {
 					e.printStackTrace();
 				}
