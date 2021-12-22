@@ -131,11 +131,16 @@ public class Main {
 				try {
 					printer.printRecord(pillCounts.getWeek(), pillCounts.getCurrentDosage(), pillCounts.getNextDosage(),
 							format("%.2f", pillCounts.getPercentage()),
-							pillCounts.getDosages()[0].getCount() > 0 ? pillCounts.getDosages()[0].getCount() : "",
-							pillCounts.getDosages()[1].getCount() > 0 ? pillCounts.getDosages()[1].getCount() : "",
-							pillCounts.getDosages()[2].getCount() > 0 ? pillCounts.getDosages()[2].getCount() : "",
-							pillCounts.getDosages()[3].getCount() > 0 ? pillCounts.getDosages()[3].getCount() : "",
-							pillCounts.getDosages()[4].getCount() > 0 ? pillCounts.getDosages()[4].getCount() : "");
+							pillCounts.getPillCounts()[0].getCount() > 0 ? pillCounts.getPillCounts()[0].getCount()
+									: "",
+							pillCounts.getPillCounts()[1].getCount() > 0 ? pillCounts.getPillCounts()[1].getCount()
+									: "",
+							pillCounts.getPillCounts()[2].getCount() > 0 ? pillCounts.getPillCounts()[2].getCount()
+									: "",
+							pillCounts.getPillCounts()[3].getCount() > 0 ? pillCounts.getPillCounts()[3].getCount()
+									: "",
+							pillCounts.getPillCounts()[4].getCount() > 0 ? pillCounts.getPillCounts()[4].getCount()
+									: "");
 				} catch (IOException e) {
 					e.printStackTrace();
 				}
@@ -156,7 +161,7 @@ public class Main {
 
 		float percentage;
 
-		PillCount[] dosages;
+		PillCount[] pillCounts;
 
 		public PillCounts(int week, float currentDosage, float newDosage, float percentage, Float[] pillSizes,
 				int[] counts) {
@@ -164,36 +169,33 @@ public class Main {
 			this.currentDosage = currentDosage;
 			this.nextDosage = newDosage;
 			this.percentage = percentage;
-			List<PillCount> dosages = new ArrayList<>();
+			List<PillCount> pillCountsList = new ArrayList<>();
 			int count5 = 0;
 
 			for (int i = 0; i < pillSizes.length; i++) {
 				if (pillSizes[i] == 5f) {
-					dosages.add(new PillCount(pillSizes[i], counts[i] + count5));
+					pillCountsList.add(new PillCount(pillSizes[i], counts[i] + count5));
 				} else if (pillSizes[i] == 10f) {
 					count5 += counts[i] * 2;
 				} else if (pillSizes[i] == 20f) {
 					count5 += counts[i] * 4;
 				} else {
-					dosages.add(new PillCount(pillSizes[i], counts[i]));
+					pillCountsList.add(new PillCount(pillSizes[i], counts[i]));
 				}
 			}
 
-			dosages.sort((d1, d2) -> Float.compare(d2.getPillSize(), d1.getPillSize()));
-			this.dosages = dosages.toArray(new PillCount[dosages.size()]);
+			pillCountsList.sort((d1, d2) -> Float.compare(d2.getPillSize(), d1.getPillSize()));
+			pillCounts = pillCountsList.toArray(new PillCount[pillCountsList.size()]);
 
-			if (this.dosages[4].pillSize * this.dosages[4].count > 50) {
-				this.dosages[1].count += (int) ((this.dosages[4].pillSize * this.dosages[4].count) / 50);
-				this.dosages[4].count = (int) (((this.dosages[4].pillSize * this.dosages[4].count) % 50)
-						/ (this.dosages[4].pillSize));
+			for (int i = pillCounts.length - 1; i > 0; i--) {
+				for (int j = 0; j < i; j++) {
+					var dose = pillCounts[i].pillSize * pillCounts[i].count;
+					if ((dose > pillCounts[j].pillSize) && (pillCounts[j].pillSize % pillCounts[i].pillSize == 0)) {
+						pillCounts[j].count += (int) (dose / pillCounts[j].pillSize);
+						pillCounts[i].count = (int) ((dose % pillCounts[j].pillSize) / (pillCounts[i].pillSize));
+					}
+				}
 			}
-
-			if (this.dosages[4].pillSize * this.dosages[4].count > 25) {
-				this.dosages[2].count += (int) ((this.dosages[4].pillSize * this.dosages[4].count) / 25);
-				this.dosages[4].count = (int) (((this.dosages[4].pillSize * this.dosages[4].count) % 25)
-						/ (this.dosages[4].pillSize));
-			}
-
 		}
 
 		@Override
@@ -202,18 +204,18 @@ public class Main {
 			stringBuilder.append(format("Week %2d | %5.1f --> %5.1f (%6.2f%%) | ", week, currentDosage, nextDosage,
 					percentage));
 			nextDosage = 0;
-			for (int i = 0; i < dosages.length; i++) {
-				nextDosage += dosages[i].getPillSize() * dosages[i].getCount();
+			for (int i = 0; i < pillCounts.length; i++) {
+				nextDosage += pillCounts[i].getPillSize() * pillCounts[i].getCount();
 				if (i > 0) {
 					stringBuilder.append(" + ");
 				}
-				if (dosages[i].getCount() == 0) {
+				if (pillCounts[i].getCount() == 0) {
 					stringBuilder.append("      ");
 				} else {
-					if (dosages[i].getPillSize() == (long) dosages[i].getPillSize()) {
-						stringBuilder.append(format("%4.0fx%d", dosages[i].getPillSize(), dosages[i].getCount()));
+					if (pillCounts[i].getPillSize() == (long) pillCounts[i].getPillSize()) {
+						stringBuilder.append(format("%4.0fx%d", pillCounts[i].getPillSize(), pillCounts[i].getCount()));
 					} else {
-						stringBuilder.append(format("%4.1fx%d", dosages[i].getPillSize(), dosages[i].getCount()));
+						stringBuilder.append(format("%4.1fx%d", pillCounts[i].getPillSize(), pillCounts[i].getCount()));
 					}
 				}
 			}
